@@ -87,10 +87,121 @@ static int lite_ttm_init(struct lite_device *ldev)
 }
 
 
+static void lite_bo_destroy(struct ttm_buffer_object *bo)
+{
+    struct lite_gem_object *lobj = container_of(bo, struct lite_gem_object, bo);
+    drm_gem_object_release(&lobj->base);
+    kfree(lobj);
+}
+
+static void lite_gem_free_object(struct drm_gem_object *obj)
+{
+    struct lite_gem_object *lobj = container_of(obj, struct lite_gem_object, base);
+    ttm_bo_put(&lobj->bo);
+}
+
+static const struct drm_gem_object_funcs lite_gem_funcs = {
+    .free = lite_gem_free_object,
+};
+
+static inline struct lite_device *to_lite_device(struct drm_device *dev)
+{
+    return container_of(dev, struct lite_device, drm);
+}
+
+static void lite_bo_placement(struct ttm_placement *placement,
+                              struct ttm_place *places,
+                              uint32_t domain)
+{
+    int i = 0;
+
+    if (domain & TTM_PL_FLAG_VRAM) {
+        places[i].fpfn = 0;
+        places[i].lpfn = 0;
+        places[i].mem_type = TTM_PL_VRAM;
+        places[i].flags = 0;
+        i++;
+    }
+    
+    // System fallback
+    places[i].fpfn = 0;
+    places[i].lpfn = 0;
+    places[i].mem_type = TTM_PL_SYSTEM;
+    places[i].flags = 0;
+    i++;
+    
+    placement->num_placement = i;
+    placement->placement = places;
+    placement->num_busy_placement = i;
+    placement->busy_placement = places;
+}
+
+static int lite_bo_create(struct lite_device *ldev, size_t size,
+                          struct lite_gem_object **pobj)
+{
+    struct lite_gem_object *obj;
+    struct ttm_placement placement = {};
+    struct ttm_place places[2]; // VRAM + SYSTEM
+    int ret;
+
+    obj = kzalloc(sizeof(*obj), GFP_KERNEL);
+    if (!obj)
+        return -ENOMEM;
+
+    /* Initialize GEM object */
+    obj->base.funcs = &lite_gem_funcs;
+    drm_gem_private_object_init(&ldev->drm, &obj->base, size);
+    
+    /* Setup placement (Prefer VRAM) */
+    lite_bo_placement(&placement, places, TTM_PL_FLAG_VRAM);
+
+    /* Initialize TTM BO */
+    obj->bo.destroy = lite_bo_destroy;
+    ret = ttm_bo_init_validate(&ldev->ttm, &obj->bo, TTM_PL_FLAG_VRAM,
+                               &placement, PAGE_ALIGN(size) >> PAGE_SHIFT,
+                               false, NULL, NULL, NULL);
+    if (ret) {
+        // Obj is freed by ttm_bo_put on failure usually if init started?
+        // If init fails, we might need to free obj manually if refcount is 0?
+        // ttm_bo_init_validate consumes the BO structure? 
+        // If it fails, clean up depends on where it failed.
+        // For simplicity here assume kfree is needed if internal init failed early.
+        // But safe bet is ttm_bo_put if it was init? 
+        // Actually standard says checking ret.
+         kfree(obj);
+         return ret;
+    }
+
+    *pobj = obj;
+    return 0;
+}
+
 static int lite_ioctl_gem_create(struct drm_device *dev, void *data, struct drm_file *file)
 {
+    struct lite_device *ldev = to_lite_device(dev);
     struct lite_gem_create *args = data;
-    /* Todo: Implement allocation */
+    struct lite_gem_object *obj;
+    int ret;
+    
+    if (args->size == 0)
+        return -EINVAL;
+
+    args->size = PAGE_ALIGN(args->size);
+
+    ret = lite_bo_create(ldev, args->size, &obj);
+    if (ret)
+        return ret;
+
+    ret = drm_gem_handle_create(file, &obj->base, &args->handle);
+    if (ret) {
+        ttm_bo_put(&obj->bo); // Release reference
+        return ret;
+    }
+
+    // Drop reference returned by lite_bo_create (via ttm_bo_init)
+    // The handle now holds a reference.
+    ttm_bo_put(&obj->bo);
+
     return 0;
 }
 
