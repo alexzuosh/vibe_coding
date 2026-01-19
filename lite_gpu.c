@@ -208,8 +208,19 @@ static int lite_ioctl_gem_create(struct drm_device *dev, void *data, struct drm_
 static int lite_ioctl_gem_map(struct drm_device *dev, void *data, struct drm_file *file)
 {
     struct lite_gem_map *args = data;
-    /* Todo: Implement mapping */
-    return 0;
+    struct drm_gem_object *obj;
+    int ret;
+
+    obj = drm_gem_object_lookup(file, args->handle);
+    if (!obj)
+        return -ENOENT;
+
+    ret = drm_gem_create_mmap_offset(obj);
+    if (ret == 0)
+        args->offset = drm_vma_node_offset_addr(&obj->vma_node);
+    
+    drm_gem_object_put(obj);
+    return ret;
 }
 
 static int lite_ioctl_get_param(struct drm_device *dev, void *data, struct drm_file *file)
@@ -225,12 +236,20 @@ static const struct drm_ioctl_desc lite_ioctls[] = {
     DRM_IOCTL_DEF_DRV(LITE_GET_PARAM, lite_ioctl_get_param, DRM_RENDER_ALLOW),
 };
 
+static int lite_mmap(struct file *filp, struct vm_area_struct *vma)
+{
+    struct drm_file *file_priv = filp->private_data;
+    struct lite_device *ldev = to_lite_device(file_priv->minor->dev);
+
+    return ttm_bo_mmap(filp, vma, &ldev->ttm);
+}
+
 static const struct file_operations lite_gpu_fops = {
     .owner = THIS_MODULE,
     .open = drm_open,
     .release = drm_release,
     .unlocked_ioctl = drm_ioctl,
-    .mmap = drm_gem_mmap,
+    .mmap = lite_mmap,
 };
 
 static struct drm_driver lite_drm_driver = {
