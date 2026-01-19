@@ -8,6 +8,10 @@
 #include <drm/drm_file.h>
 #include <drm/drm_gem.h>
 #include <drm/drm_ioctl.h>
+#include <drm/ttm/ttm_device.h>
+#include <drm/ttm/ttm_placement.h>
+#include <drm/ttm/ttm_range_manager.h>
+#include <drm/ttm/ttm_bo.h>
 
 #include "lite_uapi.h"
 
@@ -18,6 +22,7 @@ MODULE_VERSION("0.1");
 
 #define LITE_GPU_VENDOR_ID 0x1ED5  // Example Vendor ID
 #define LITE_GPU_DEVICE_ID 0x1000  // Example Device ID
+#define LITE_VRAM_SIZE (256 * 1024 * 1024) // 256MB
 
 static const struct pci_device_id lite_gpu_ids[] = {
     { PCI_DEVICE(LITE_GPU_VENDOR_ID, LITE_GPU_DEVICE_ID) },
@@ -69,7 +74,16 @@ static int lite_ttm_init(struct lite_device *ldev)
                           ldev->drm.anon_inode->i_mapping,
                           ldev->drm.vma_offset_manager,
                           false, true);
-    return ret;
+    if (ret)
+        return ret;
+
+    /* Initialize VRAM manager */
+    ret = ttm_range_manager_init(&ldev->ttm, TTM_PL_VRAM, false,
+                                 LITE_VRAM_SIZE >> PAGE_SHIFT);
+    if (ret)
+        return ret;
+
+    return 0;
 }
 
 
