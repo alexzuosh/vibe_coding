@@ -3,6 +3,7 @@
 #include <linux/init.h>
 #include <linux/pci.h>
 #include <linux/pm_runtime.h>
+#include <linux/uaccess.h>
 #include <drm/drm_device.h>
 #include <drm/drm_drv.h>
 #include <drm/drm_file.h>
@@ -30,10 +31,21 @@ static const struct pci_device_id lite_gpu_ids[] = {
 };
 MODULE_DEVICE_TABLE(pci, lite_gpu_ids);
 
+#define LITE_RING_SIZE (64 * 1024)
+
+struct lite_ring {
+    void *vaddr;
+    u32 size;
+    u32 wptr;
+    u32 rptr;
+    spinlock_t lock;
+};
+
 struct lite_device {
     struct drm_device drm;
     struct pci_dev *pdev;
     struct ttm_device ttm;
+    struct lite_ring ring;
 };
 
 struct lite_gem_object {
@@ -230,10 +242,85 @@ static int lite_ioctl_get_param(struct drm_device *dev, void *data, struct drm_f
     return 0;
 }
 
+static int lite_ring_init(struct lite_device *ldev)
+{
+    struct lite_ring *ring = &ldev->ring;
+
+    ring->size = LITE_RING_SIZE;
+    ring->vaddr = kzalloc(ring->size, GFP_KERNEL);
+    if (!ring->vaddr)
+        return -ENOMEM;
+
+    ring->wptr = 0;
+    ring->rptr = 0;
+    spin_lock_init(&ring->lock);
+    return 0;
+}
+
+static void lite_ring_fini(struct lite_device *ldev)
+{
+    struct lite_ring *ring = &ldev->ring;
+    kfree(ring->vaddr);
+}
+
+static int lite_ioctl_submit_cmd(struct drm_device *dev, void *data, struct drm_file *file)
+{
+    struct lite_device *ldev = to_lite_device(dev);
+    struct lite_submit_cmd *args = data;
+    struct lite_ring *ring = &ldev->ring;
+    u32 size = args->cmd_buffer_size;
+    unsigned long flags;
+    int ret = 0;
+
+    if (size > ring->size)
+        return -EINVAL;
+
+    spin_lock_irqsave(&ring->lock, flags);
+
+    // Check space (simplistic circular buffer check)
+    // For now, reset if full or wrap around logic
+    if (ring->wptr + size > ring->size) {
+        ring->wptr = 0; // Wrap around
+    }
+
+    if (copy_from_user(ring->vaddr + ring->wptr,
+                       (void __user *)(uintptr_t)args->cmd_buffer_ptr,
+                       size)) {
+        ret = -EFAULT;
+        goto out_unlock;
+    }
+
+    ring->wptr += size;
+    
+    // Todo: ring doorbell mechanism
+
+out_unlock:
+    spin_unlock_irqrestore(&ring->lock, flags);
+    return ret;
+}
+
+static int lite_ioctl_wait_bo(struct drm_device *dev, void *data, struct drm_file *file)
+{
+    struct lite_wait_bo *args = data;
+    struct drm_gem_object *obj;
+
+    obj = drm_gem_object_lookup(file, args->handle);
+    if (!obj)
+        return -ENOENT;
+
+    // TODO: Implement actual fence waiting
+    // For now, we assume immediate completion
+    
+    drm_gem_object_put(obj);
+    return 0;
+}
+
 static const struct drm_ioctl_desc lite_ioctls[] = {
     DRM_IOCTL_DEF_DRV(LITE_GEM_CREATE, lite_ioctl_gem_create, DRM_RENDER_ALLOW),
     DRM_IOCTL_DEF_DRV(LITE_GEM_MAP, lite_ioctl_gem_map, DRM_RENDER_ALLOW),
     DRM_IOCTL_DEF_DRV(LITE_GET_PARAM, lite_ioctl_get_param, DRM_RENDER_ALLOW),
+    DRM_IOCTL_DEF_DRV(LITE_SUBMIT_CMD, lite_ioctl_submit_cmd, DRM_RENDER_ALLOW),
+    DRM_IOCTL_DEF_DRV(LITE_WAIT_BO, lite_ioctl_wait_bo, DRM_RENDER_ALLOW),
 };
 
 static int lite_mmap(struct file *filp, struct vm_area_struct *vma)
@@ -286,6 +373,10 @@ static int lite_gpu_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     if (ret)
         return ret;
 
+    ret = lite_ring_init(ldev);
+    if (ret)
+        return ret;
+
     ret = drm_dev_register(&ldev->drm, 0);
     if (ret)
         return ret;
@@ -313,6 +404,7 @@ static void lite_gpu_remove(struct pci_dev *pdev)
     pm_runtime_forbid(&pdev->dev);
     
     drm_dev_unregister(&ldev->drm);
+    lite_ring_fini(ldev);
     pci_disable_device(pdev);
     printk(KERN_INFO "lite_gpu: Device removed\n");
 }
