@@ -62,10 +62,23 @@ struct lite_submit_cmd {
     __u64 fence_out;
 };
 
+/**
+ * struct lite_wait_bo - Wait for a buffer object to be idle
+ * @handle: GEM handle to wait on
+ * @timeout_ns: Timeout in nanoseconds
+ * @pad: Padding for alignment
+ */
+struct lite_wait_bo {
+    __u32 handle;
+    __u32 pad;
+    __u64 timeout_ns;
+};
+
 /* IOCTL Definitions */
 #define DRM_IOCTL_LITE_GET_PARAM    _IOWR(LITE_IOCTL_BASE, DRM_LITE_GET_PARAM, struct lite_get_param)
 #define DRM_IOCTL_LITE_GEM_CREATE   _IOWR(LITE_IOCTL_BASE, DRM_LITE_GEM_CREATE, struct lite_gem_create)
 #define DRM_IOCTL_LITE_GEM_MAP      _IOWR(LITE_IOCTL_BASE, DRM_LITE_GEM_MAP, struct lite_gem_map)
 #define DRM_IOCTL_LITE_SUBMIT_CMD   _IOWR(LITE_IOCTL_BASE, DRM_LITE_SUBMIT_CMD, struct lite_submit_cmd)
+#define DRM_IOCTL_LITE_WAIT_BO      _IOWR(LITE_IOCTL_BASE, DRM_LITE_WAIT_BO, struct lite_wait_bo)
 
 #endif /* _LITE_UAPI_H_ */
