@@ -1,6 +1,6 @@
 /*
  * LiteGPU Driver - A Vibe Coding Project
- * 
+ *
  * This driver demonstrates clean, intuitive kernel development principles.
  * Every component is designed to be self-explanatory and maintainable.
  */
@@ -29,9 +29,9 @@ MODULE_DESCRIPTION("A simple Lite GPU kernel module - Built with vibe coding pri
 MODULE_VERSION("0.1");
 
 /* Hardware identifiers for LiteGPU */
-#define LITE_GPU_VENDOR_ID 0x1ED5  // Example Vendor ID
-#define LITE_GPU_DEVICE_ID 0x1000  // Example Device ID
-#define LITE_VRAM_SIZE (256 * 1024 * 1024) // 256MB - Sufficient for most workloads
+#define LITE_GPU_VENDOR_ID 0x1ED5  /* Example Vendor ID */
+#define LITE_GPU_DEVICE_ID 0x1000  /* Example Device ID */
+#define LITE_VRAM_SIZE (256 * 1024 * 1024) /* 256MB - Sufficient for most workloads */
 
 static const struct pci_device_id lite_gpu_ids[] = {
     { PCI_DEVICE(LITE_GPU_VENDOR_ID, LITE_GPU_DEVICE_ID) },
