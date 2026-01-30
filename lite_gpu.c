@@ -130,11 +130,12 @@ static inline struct lite_device *to_lite_device(struct drm_device *dev)
 
 static void lite_bo_placement(struct ttm_placement *placement,
                               struct ttm_place *places,
-                              uint32_t domain)
+                              uint32_t flags)
 {
     int i = 0;
 
-    if (domain & TTM_PL_FLAG_VRAM) {
+    /* If user requested VRAM, try VRAM first */
+    if (flags & LITE_GEM_DOMAIN_VRAM) {
         places[i].fpfn = 0;
         places[i].lpfn = 0;
         places[i].mem_type = TTM_PL_VRAM;
@@ -142,12 +143,30 @@ static void lite_bo_placement(struct ttm_placement *placement,
         i++;
     }
     
-    // System fallback
-    places[i].fpfn = 0;
-    places[i].lpfn = 0;
-    places[i].mem_type = TTM_PL_SYSTEM;
-    places[i].flags = 0;
-    i++;
+    /* If user requested GTT, or if VRAM request failed/not requested and we need fallback */
+    if (flags & LITE_GEM_DOMAIN_GTT) {
+        places[i].fpfn = 0;
+        places[i].lpfn = 0;
+        places[i].mem_type = TTM_PL_TT;
+        places[i].flags = 0;
+        i++;
+    }
+
+    /* Fallback to System/GTT if nothing valid specified or strict flags not used */
+    if (i == 0) {
+        // Default to VRAM then GTT
+         places[i].fpfn = 0;
+         places[i].lpfn = 0;
+         places[i].mem_type = TTM_PL_VRAM;
+         places[i].flags = 0;
+         i++;
+         
+         places[i].fpfn = 0;
+         places[i].lpfn = 0;
+         places[i].mem_type = TTM_PL_TT;
+         places[i].flags = 0;
+         i++;
+    }
     
     placement->num_placement = i;
     placement->placement = places;
@@ -155,12 +174,12 @@ static void lite_bo_placement(struct ttm_placement *placement,
     placement->busy_placement = places;
 }
 
-static int lite_bo_create(struct lite_device *ldev, size_t size,
+static int lite_bo_create(struct lite_device *ldev, size_t size, uint32_t flags,
                           struct lite_gem_object **pobj)
 {
     struct lite_gem_object *obj;
     struct ttm_placement placement = {};
-    struct ttm_place places[2]; // VRAM + SYSTEM
+    struct ttm_place places[4]; 
     int ret;
 
     obj = kzalloc(sizeof(*obj), GFP_KERNEL);
@@ -171,12 +190,12 @@ static int lite_bo_create(struct lite_device *ldev, size_t size,
     obj->base.funcs = &lite_gem_funcs;
     drm_gem_private_object_init(&ldev->drm, &obj->base, size);
     
-    /* Setup placement (Prefer VRAM) */
-    lite_bo_placement(&placement, places, TTM_PL_FLAG_VRAM);
+    /* Setup placement based on flags */
+    lite_bo_placement(&placement, places, flags);
 
     /* Initialize TTM BO */
     obj->bo.destroy = lite_bo_destroy;
-    ret = ttm_bo_init_validate(&ldev->ttm, &obj->bo, TTM_PL_FLAG_VRAM,
+    ret = ttm_bo_init_validate(&ldev->ttm, &obj->bo, TTM_PL_FLAG_VRAM | TTM_PL_FLAG_TT,
                                &placement, PAGE_ALIGN(size) >> PAGE_SHIFT,
                                false, NULL, NULL, NULL);
     if (ret) {
@@ -207,7 +226,7 @@ static int lite_ioctl_gem_create(struct drm_device *dev, void *data, struct drm_
 
     args->size = PAGE_ALIGN(args->size);
 
-    ret = lite_bo_create(ldev, args->size, &obj);
+    ret = lite_bo_create(ldev, args->size, args->flags, &obj);
     if (ret)
         return ret;
 
