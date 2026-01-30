@@ -24,6 +24,7 @@ MODULE_VERSION("0.1");
 #define LITE_GPU_VENDOR_ID 0x1ED5  // Example Vendor ID
 #define LITE_GPU_DEVICE_ID 0x1000  // Example Device ID
 #define LITE_VRAM_SIZE (256 * 1024 * 1024) // 256MB
+#define LITE_GTT_SIZE (1024 * 1024 * 1024) // 1GB
 
 static const struct pci_device_id lite_gpu_ids[] = {
     { PCI_DEVICE(LITE_GPU_VENDOR_ID, LITE_GPU_DEVICE_ID) },
@@ -92,6 +93,12 @@ static int lite_ttm_init(struct lite_device *ldev)
     /* Initialize VRAM manager */
     ret = ttm_range_manager_init(&ldev->ttm, TTM_PL_VRAM, false,
                                  LITE_VRAM_SIZE >> PAGE_SHIFT);
+    if (ret)
+        return ret;
+
+    /* Initialize GTT manager */
+    ret = ttm_range_manager_init(&ldev->ttm, TTM_PL_TT, false,
+                                 LITE_GTT_SIZE >> PAGE_SHIFT);
     if (ret)
         return ret;
 
