@@ -13,6 +13,10 @@
 #define DRM_LITE_SUBMIT_CMD     0x03
 #define DRM_LITE_WAIT_BO        0x04
 
+/* Memory Domain Flags */
+#define LITE_GEM_DOMAIN_VRAM    0x1
+#define LITE_GEM_DOMAIN_GTT     0x2
+
 /* Data structures */
 
 /**
