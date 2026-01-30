@@ -1,3 +1,10 @@
+/*
+ * LiteGPU Driver - A Vibe Coding Project
+ * 
+ * This driver demonstrates clean, intuitive kernel development principles.
+ * Every component is designed to be self-explanatory and maintainable.
+ */
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -18,12 +25,13 @@
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Alex Zuo");
-MODULE_DESCRIPTION("A simple Lite GPU kernel module");
+MODULE_DESCRIPTION("A simple Lite GPU kernel module - Built with vibe coding principles");
 MODULE_VERSION("0.1");
 
+/* Hardware identifiers for LiteGPU */
 #define LITE_GPU_VENDOR_ID 0x1ED5  // Example Vendor ID
 #define LITE_GPU_DEVICE_ID 0x1000  // Example Device ID
-#define LITE_VRAM_SIZE (256 * 1024 * 1024) // 256MB
+#define LITE_VRAM_SIZE (256 * 1024 * 1024) // 256MB - Sufficient for most workloads
 
 static const struct pci_device_id lite_gpu_ids[] = {
     { PCI_DEVICE(LITE_GPU_VENDOR_ID, LITE_GPU_DEVICE_ID) },
@@ -31,26 +39,46 @@ static const struct pci_device_id lite_gpu_ids[] = {
 };
 MODULE_DEVICE_TABLE(pci, lite_gpu_ids);
 
+/* Command ring buffer size - Balance between memory usage and capacity */
 #define LITE_RING_SIZE (64 * 1024)
 
+/*
+ * lite_ring - Command ring buffer for GPU job submission
+ * 
+ * This circular buffer allows efficient queueing of GPU commands.
+ * Write pointer (wptr) tracks where new commands are added.
+ * Read pointer (rptr) tracks what the GPU has processed.
+ */
 struct lite_ring {
-    void *vaddr;
-    u32 size;
-    u32 wptr;
-    u32 rptr;
-    spinlock_t lock;
+    void *vaddr;        /* Virtual address of ring buffer */
+    u32 size;           /* Total size in bytes */
+    u32 wptr;           /* Write pointer - where to add new commands */
+    u32 rptr;           /* Read pointer - what GPU has processed */
+    spinlock_t lock;    /* Protects concurrent access */
 };
 
+/*
+ * lite_device - Main device structure representing a LiteGPU instance
+ * 
+ * This structure encapsulates all the state needed to manage a LiteGPU device.
+ * It integrates with the DRM subsystem for standardized GPU management.
+ */
 struct lite_device {
-    struct drm_device drm;
-    struct pci_dev *pdev;
-    struct ttm_device ttm;
-    struct lite_ring ring;
+    struct drm_device drm;      /* DRM device - integrates with Linux graphics stack */
+    struct pci_dev *pdev;       /* PCI device - hardware interface */
+    struct ttm_device ttm;      /* TTM device - manages GPU memory */
+    struct lite_ring ring;      /* Command ring - queues GPU work */
 };
 
+/*
+ * lite_gem_object - GEM buffer object representing GPU memory
+ * 
+ * Wraps a DRM GEM object with TTM buffer management for efficient
+ * memory allocation and tracking.
+ */
 struct lite_gem_object {
-    struct drm_gem_object base;
-    struct ttm_buffer_object bo;
+    struct drm_gem_object base; /* Base GEM object */
+    struct ttm_buffer_object bo; /* TTM buffer object - actual memory */
 };
 
 static struct ttm_tt *lite_ttm_tt_create(struct ttm_buffer_object *bo, uint32_t page_flags)

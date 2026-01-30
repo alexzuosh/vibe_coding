@@ -1,5 +1,7 @@
 # LiteGPU Architecture
 
+> **Vibe Coding Philosophy**: This architecture is designed to be intuitive and understandable at a glance. Each component has a clear purpose and well-defined interfaces.
+
 LiteGPU is a lightweight GPU designed for high performance and efficiency, connected via a **PCIe Gen5** interface.
 
 ## Core Components
