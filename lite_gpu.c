@@ -29,9 +29,9 @@ MODULE_DESCRIPTION("A simple Lite GPU kernel module - Built with vibe coding pri
 MODULE_VERSION("0.1");
 
 /* Hardware identifiers for LiteGPU */
-#define LITE_GPU_VENDOR_ID 0x1ED5  /* Example Vendor ID */
-#define LITE_GPU_DEVICE_ID 0x1000  /* Example Device ID */
-#define LITE_VRAM_SIZE (256 * 1024 * 1024) /* 256MB - Sufficient for most workloads */
+#define LITE_GPU_VENDOR_ID 0x1ED5              /* Example Vendor ID */
+#define LITE_GPU_DEVICE_ID 0x1000              /* Example Device ID */
+#define LITE_VRAM_SIZE (256 * 1024 * 1024)     /* 256MB */
 
 static const struct pci_device_id lite_gpu_ids[] = {
     { PCI_DEVICE(LITE_GPU_VENDOR_ID, LITE_GPU_DEVICE_ID) },
@@ -50,11 +50,11 @@ MODULE_DEVICE_TABLE(pci, lite_gpu_ids);
  * Read pointer (rptr) tracks what the GPU has processed.
  */
 struct lite_ring {
-    void *vaddr;        /* Virtual address of ring buffer */
-    u32 size;           /* Total size in bytes */
-    u32 wptr;           /* Write pointer - where to add new commands */
-    u32 rptr;           /* Read pointer - what GPU has processed */
-    spinlock_t lock;    /* Protects concurrent access */
+    void *vaddr;                /* Virtual address of ring buffer */
+    u32 size;                   /* Total size in bytes */
+    u32 wptr;                   /* Write pointer - where to add new commands */
+    u32 rptr;                   /* Read pointer - what GPU has processed */
+    spinlock_t lock;            /* Protects concurrent access */
 };
 
 /*
@@ -78,7 +78,7 @@ struct lite_device {
  */
 struct lite_gem_object {
     struct drm_gem_object base; /* Base GEM object */
-    struct ttm_buffer_object bo; /* TTM buffer object - actual memory */
+    struct ttm_buffer_object bo; /* TTM buffer object - manages memory allocation */
 };
 
 static struct ttm_tt *lite_ttm_tt_create(struct ttm_buffer_object *bo, uint32_t page_flags)
