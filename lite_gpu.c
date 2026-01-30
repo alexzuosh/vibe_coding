@@ -44,7 +44,7 @@ MODULE_DEVICE_TABLE(pci, lite_gpu_ids);
 
 /*
  * lite_ring - Command ring buffer for GPU job submission
- * 
+ *
  * This circular buffer allows efficient queueing of GPU commands.
  * Write pointer (wptr) tracks where new commands are added.
  * Read pointer (rptr) tracks what the GPU has processed.
@@ -59,7 +59,7 @@ struct lite_ring {
 
 /*
  * lite_device - Main device structure representing a LiteGPU instance
- * 
+ *
  * This structure encapsulates all the state needed to manage a LiteGPU device.
  * It integrates with the DRM subsystem for standardized GPU management.
  */
@@ -72,7 +72,7 @@ struct lite_device {
 
 /*
  * lite_gem_object - GEM buffer object representing GPU memory
- * 
+ *
  * Wraps a DRM GEM object with TTM buffer management for efficient
  * memory allocation and tracking.
  */
